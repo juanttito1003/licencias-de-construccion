@@ -191,13 +191,24 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Actualizar estado del expediente (RF11, RF12)
-router.patch('/:id/estado', auth, requiereRol('GERENTE'), async (req, res) => {
+router.patch('/:id/estado', auth, requiereRol('GERENTE', 'MESA_PARTES'), async (req, res) => {
   try {
     const { estado, observaciones } = req.body;
     const expediente = await Expediente.findById(req.params.id);
 
     if (!expediente) {
       return res.status(404).json({ error: 'Expediente no encontrado' });
+    }
+
+    // Validar permisos por rol
+    const esGerente = req.usuario.rol === 'GERENTE';
+    const esMesaPartes = req.usuario.rol === 'MESA_PARTES';
+    
+    // Mesa de Partes solo puede cambiar a estados iniciales
+    if (esMesaPartes && !['EN_REVISION', 'OBSERVADO', 'ASIGNADO_TECNICO'].includes(estado)) {
+      return res.status(403).json({ 
+        error: 'Mesa de Partes solo puede asignar expedientes a técnicos o marcarlos como observados' 
+      });
     }
 
     const estadoAnterior = expediente.estado;
@@ -356,11 +367,18 @@ router.put('/:id/pago', auth, requiereRol('GERENTE', 'MESA_PARTES'), async (req,
       estadoNuevo: expediente.estado
     });
 
+    // Buscar usuario del solicitante para notificación
+    const usuarioSolicitante = await Usuario.findOne({ email: expediente.solicitante.email });
+
     // Enviar notificación al solicitante
     await enviarNotificacion({
       destinatario: expediente.solicitante.email,
+      usuarioId: usuarioSolicitante?._id,
+      expedienteId: expediente._id,
+      tipo: 'INFO',
       asunto: 'Monto de Pago Asignado',
-      mensaje: `Se ha asignado el monto de pago para el expediente ${expediente.numeroExpediente}. Monto: S/ ${monto}. Debe realizar el pago en el Banco de la Nación y subir el voucher.`
+      mensaje: `Se ha asignado el monto de pago para el expediente ${expediente.numeroExpediente}. Monto: S/ ${monto}. Debe realizar el pago en el Banco de la Nación y subir el voucher.`,
+      prioridad: 'ALTA'
     });
 
     res.json({ 
@@ -422,11 +440,18 @@ router.post('/:id/voucher', auth, upload.single('voucher'), async (req, res) => 
       detalles: `Voucher de pago del Banco de la Nación registrado. N° Operación: ${numeroOperacion}`
     });
 
+    // Buscar usuario del solicitante para notificación
+    const usuarioSolicitante = await Usuario.findOne({ email: expediente.solicitante.email });
+
     // Enviar notificación
     await enviarNotificacion({
       destinatario: expediente.solicitante.email,
+      usuarioId: usuarioSolicitante?._id,
+      expedienteId: expediente._id,
+      tipo: 'INFO',
       asunto: `Pago Registrado - Expediente ${expediente.numeroExpediente}`,
-      mensaje: `Su comprobante de pago ha sido registrado exitosamente. N° Operación: ${numeroOperacion}`
+      mensaje: `Su comprobante de pago ha sido registrado exitosamente. N° Operación: ${numeroOperacion}`,
+      prioridad: 'NORMAL'
     });
 
     res.json({ 
@@ -538,8 +563,8 @@ router.post('/:id/subir-licencia', auth, requiereRol('GERENTE'), uploadLicencia.
       return res.status(404).json({ error: 'Expediente no encontrado' });
     }
 
-    // Buscar usuario solicitante
-    const usuario = await Usuario.findById(expediente.solicitante);
+    // Buscar usuario solicitante por email (solicitante es objeto embebido, no referencia)
+    const usuario = await Usuario.findOne({ email: expediente.solicitante.email });
     
     if (!usuario) {
       return res.status(404).json({ error: 'Usuario solicitante no encontrado' });
@@ -689,15 +714,20 @@ router.post('/:id/subsanar', auth, upload.fields([
       estadoNuevo: 'REGISTRADO'
     });
 
-    // Notificar a Mesa de Partes
-    await enviarNotificacion({
-      tipo: 'SUBSANACION',
-      titulo: '📝 Documentos subsanados',
-      mensaje: `El expediente ${expediente.numeroExpediente} ha subsanado documentos observados`,
-      expediente: expediente._id,
-      prioridad: 'ALTA',
-      roles: ['MESA_PARTES']
-    });
+    // Notificar a todos los usuarios de Mesa de Partes
+    const usuariosMesaPartes = await Usuario.find({ rol: 'MESA_PARTES', activo: true });
+    
+    for (const usuarioMP of usuariosMesaPartes) {
+      await enviarNotificacion({
+        destinatario: usuarioMP.email,
+        usuarioId: usuarioMP._id,
+        expedienteId: expediente._id,
+        tipo: 'INFO',
+        asunto: '📝 Documentos subsanados',
+        mensaje: `El expediente ${expediente.numeroExpediente} ha subsanado documentos observados y requiere nueva revisión.`,
+        prioridad: 'ALTA'
+      });
+    }
 
     res.json({ 
       mensaje: 'Documentos subsanados correctamente. Tu expediente será revisado nuevamente.',

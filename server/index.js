@@ -61,9 +61,27 @@ if (process.env.NODE_ENV === 'production') {
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
 })
 .then(() => console.log('✓ Conectado a MongoDB'))
-.catch(err => console.error('Error al conectar a MongoDB:', err));
+.catch(err => {
+  console.error('❌ Error al conectar a MongoDB:', err.message);
+  console.log('⚠️  El servidor continuará corriendo pero sin base de datos');
+});
+
+// Manejar eventos de MongoDB
+mongoose.connection.on('error', (err) => {
+  console.error('❌ Error de MongoDB:', err.message);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️  MongoDB desconectado. Intentando reconectar...');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('✓ MongoDB reconectado exitosamente');
+});
 
 // Manejo de errores global
 app.use((err, req, res, next) => {
@@ -76,9 +94,44 @@ app.use((err, req, res, next) => {
 
 // Iniciar servidor
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`✓ Servidor corriendo en puerto ${PORT}`);
   console.log(`✓ Modo: ${process.env.NODE_ENV}`);
+});
+
+// Manejar errores de promesas no capturadas
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection:', reason);
+  // No cerrar el servidor, solo loggear el error
+});
+
+// Manejar excepciones no capturadas
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  // No cerrar el servidor, solo loggear el error
+});
+
+// Manejo de señales de terminación
+process.on('SIGTERM', () => {
+  console.log('⚠️  SIGTERM recibido, cerrando servidor gracefully...');
+  server.close(() => {
+    console.log('✓ Servidor cerrado');
+    mongoose.connection.close(false, () => {
+      console.log('✓ Conexión MongoDB cerrada');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('\n⚠️  SIGINT recibido, cerrando servidor...');
+  server.close(() => {
+    console.log('✓ Servidor cerrado');
+    mongoose.connection.close(false, () => {
+      console.log('✓ Conexión MongoDB cerrada');
+      process.exit(0);
+    });
+  });
 });
 
 module.exports = app;

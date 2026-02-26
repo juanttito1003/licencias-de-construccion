@@ -29,19 +29,31 @@ const Navbar = () => {
   // Cargar contador de notificaciones
   React.useEffect(() => {
     const cargarContador = async () => {
+      // Verificar que el usuario esté autenticado Y que el token exista
+      if (!usuario || !localStorage.getItem('token')) {
+        return;
+      }
+      
       try {
         const response = await api.get('/notificaciones/no-leidas/contador');
         setContadorNotificaciones(response.data.contador);
       } catch (error) {
-        console.error('Error al cargar contador:', error);
+        // Solo mostrar error si no es un error de autenticación
+        if (error.response?.status !== 401) {
+          console.error('Error al cargar contador:', error);
+        }
       }
     };
 
     if (usuario) {
-      cargarContador();
+      // Esperar un momento para asegurar que el token esté configurado
+      const timer = setTimeout(cargarContador, 100);
       // Actualizar cada 30 segundos
       const interval = setInterval(cargarContador, 30000);
-      return () => clearInterval(interval);
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
     }
   }, [usuario]);
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const Expediente = require('../models/Expediente');
+const Usuario = require('../models/Usuario');
 const { auth } = require('../middleware/auth');
 const { registrarHistorial } = require('../utils/historial');
 const { enviarNotificacion } = require('../utils/notificaciones');
@@ -54,10 +55,17 @@ router.post('/:expedienteId', auth, upload.single('comprobante'), async (req, re
       estadoNuevo: 'PAGADO'
     });
 
+    // Buscar usuario del solicitante
+    const usuarioSolicitante = await Usuario.findOne({ email: expediente.solicitante.email });
+
     await enviarNotificacion({
       destinatario: expediente.solicitante.email,
+      usuarioId: usuarioSolicitante?._id,
+      expedienteId: expediente._id,
+      tipo: 'INFO',
       asunto: 'Pago Registrado',
-      mensaje: `El pago de S/ ${monto} ha sido registrado exitosamente.`
+      mensaje: `El pago de S/ ${monto} ha sido registrado exitosamente.`,
+      prioridad: 'NORMAL'
     });
 
     res.json({
@@ -95,10 +103,17 @@ router.patch('/:expedienteId/verificar', auth, async (req, res) => {
       estadoNuevo: 'PAGO_VERIFICADO'
     });
 
+    // Buscar usuario del solicitante
+    const usuarioSolicitante = await Usuario.findOne({ email: expediente.solicitante.email });
+
     await enviarNotificacion({
       destinatario: expediente.solicitante.email,
+      usuarioId: usuarioSolicitante?._id,
+      expedienteId: expediente._id,
+      tipo: 'APROBACION',
       asunto: 'Pago Verificado',
-      mensaje: 'Su pago ha sido verificado exitosamente. El expediente continuará con el proceso de aprobación.'
+      mensaje: 'Su pago ha sido verificado exitosamente. El expediente continuará con el proceso de aprobación.',
+      prioridad: 'NORMAL'
     });
 
     res.json({
@@ -139,10 +154,17 @@ router.patch('/:expedienteId/rechazar', auth, async (req, res) => {
       detalles: `Pago rechazado. Motivo: ${motivo || 'No especificado'}`
     });
 
+    // Buscar usuario del solicitante
+    const usuarioSolicitante = await Usuario.findOne({ email: expediente.solicitante.email });
+
     await enviarNotificacion({
       destinatario: expediente.solicitante.email,
+      usuarioId: usuarioSolicitante?._id,
+      expedienteId: expediente._id,
+      tipo: 'RECHAZO',
       asunto: 'Pago Rechazado',
-      mensaje: `Su comprobante de pago ha sido rechazado. Motivo: ${motivo || 'Datos incorrectos o ilegibles'}. Por favor, registre nuevamente el pago con la información correcta.`
+      mensaje: `Su comprobante de pago ha sido rechazado. Motivo: ${motivo || 'Datos incorrectos o ilegibles'}. Por favor, registre nuevamente el pago con la información correcta.`,
+      prioridad: 'ALTA'
     });
 
     res.json({

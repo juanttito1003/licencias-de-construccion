@@ -11,6 +11,9 @@ const DashboardInspector = () => {
   const [cargando, setCargando] = useState(true);
   const [expedienteSeleccionado, setExpedienteSeleccionado] = useState(null);
   const [mostrarModalInspeccion, setMostrarModalInspeccion] = useState(false);
+  const [mostrarModalProgramar, setMostrarModalProgramar] = useState(false);
+  const [fechaInspeccion, setFechaInspeccion] = useState('');
+  const [horaInspeccion, setHoraInspeccion] = useState('09:00');
 
   useEffect(() => {
     cargarDatos();
@@ -38,17 +41,34 @@ const DashboardInspector = () => {
     }
   };
 
-  const programarInspeccion = async (expedienteId) => {
-    const fecha = prompt('Ingresa la fecha y hora de inspección (formato: YYYY-MM-DD HH:MM):');
-    if (!fecha) return;
+  const abrirModalProgramar = (expediente) => {
+    setExpedienteSeleccionado(expediente);
+    // Establecer fecha mínima como mañana
+    const manana = new Date();
+    manana.setDate(manana.getDate() + 1);
+    setFechaInspeccion(manana.toISOString().split('T')[0]);
+    setHoraInspeccion('09:00');
+    setMostrarModalProgramar(true);
+  };
+
+  const programarInspeccion = async () => {
+    if (!fechaInspeccion || !horaInspeccion) {
+      alert('⚠️ Debes seleccionar fecha y hora');
+      return;
+    }
 
     try {
+      // Combinar fecha y hora
+      const fechaHora = `${fechaInspeccion}T${horaInspeccion}:00`;
+      
       await api.post('/inspecciones', {
-        expedienteId: expedienteId,
-        fechaProgramada: new Date(fecha),
+        expedienteId: expedienteSeleccionado._id,
+        fechaProgramada: new Date(fechaHora),
         inspector: usuario._id,
         tipo: 'INICIAL'
       });
+      
+      setMostrarModalProgramar(false);
       cargarDatos();
       alert('✅ Inspección programada correctamente');
     } catch (error) {
@@ -262,7 +282,7 @@ const DashboardInspector = () => {
                 {exp.estado === 'PROGRAMACION_INSPECCION' && (
                   <button 
                     className="btn btn-info"
-                    onClick={() => programarInspeccion(exp._id)}
+                    onClick={() => abrirModalProgramar(exp)}
                   >
                     <FaCalendarAlt /> Programar Inspección
                   </button>
@@ -358,6 +378,72 @@ const DashboardInspector = () => {
                 }}
               >
                 Guardar Inspección
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Programar Inspección */}
+      {mostrarModalProgramar && expedienteSeleccionado && (
+        <div className="modal-overlay" onClick={() => setMostrarModalProgramar(false)}>
+          <div className="modal-content-inspeccion" onClick={e => e.stopPropagation()}>
+            <h3>📅 Programar Inspección</h3>
+            <p className="modal-subtitle">
+              Expediente: {expedienteSeleccionado.numeroExpediente}<br/>
+              Proyecto: {expedienteSeleccionado.proyecto.nombreProyecto}
+            </p>
+
+            <div className="inspeccion-form">
+              <div className="form-group">
+                <label>📆 Fecha de Inspección:</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={fechaInspeccion}
+                  onChange={(e) => setFechaInspeccion(e.target.value)}
+                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                  required
+                />
+                <small className="form-text">Selecciona la fecha desde el calendario</small>
+              </div>
+
+              <div className="form-group">
+                <label>⏰ Hora de Inspección:</label>
+                <input
+                  type="time"
+                  className="form-control"
+                  value={horaInspeccion}
+                  onChange={(e) => setHoraInspeccion(e.target.value)}
+                  min="08:00"
+                  max="18:00"
+                  required
+                />
+                <small className="form-text">Horario de atención: 8:00 AM - 6:00 PM</small>
+              </div>
+
+              <div className="info-programacion">
+                <strong>ℹ️ Información importante:</strong>
+                <ul>
+                  <li>La inspección debe programarse con al menos 24 horas de anticipación</li>
+                  <li>El solicitante será notificado por correo electrónico</li>
+                  <li>Se recomienda coordinar previamente con el propietario</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setMostrarModalProgramar(false)}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary"
+                onClick={programarInspeccion}
+              >
+                <FaCalendarAlt /> Confirmar Programación
               </button>
             </div>
           </div>

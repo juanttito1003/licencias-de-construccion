@@ -1,0 +1,31 @@
+{
+  "watch": ["server"],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules/",
+    "client/",
+    "uploads/",
+    "backup-mongodb-json/",
+    "mongodb-data/",
+    "mongodbdata/",
+    "*.log",
+    "*.tmp",
+    "*.backup",
+    ".git/",
+    "dump.rdb",
+    "*.md",
+    "*.txt",
+    "verificar-*.js",
+    "listar-*.js",
+    "limpiar-*.js",
+    "test-*.js",
+    "actualizar-*.js",
+    "probar-*.js",
+    "crear-*.js",
+    "importar-*.js",
+    "exportar-*.js"
+  ],
+  "delay": 2000,
+  "verbose": false,
+  "legacyWatch": true
+}

@@ -22,15 +22,57 @@ export const AuthProvider = ({ children }) => {
 
       if (token && usuarioGuardado) {
         try {
-          // Verificar que el token sea válido
-          const usuario = JSON.parse(usuarioGuardado);
+          // Intentar verificar que el token sea válido con el backend
+          const response = await api.get('/auth/verificar');
+          const usuario = response.data.usuario;
           setUsuario(usuario);
+          // Actualizar también el localStorage con los datos más recientes
+          localStorage.setItem('usuario', JSON.stringify(usuario));
         } catch (error) {
-          console.error('Error al verificar sesión:', error);
-          // Si hay error, limpiar la sesión
-          localStorage.removeItem('token');
-          localStorage.removeItem('usuario');
-          setUsuario(null);
+          console.warn('⚠️ No se pudo verificar sesión con el servidor:', error.message);
+          
+          // Si es error de red o servidor caído (no hay response)
+          // MANTENER la sesión del localStorage
+          if (!error.response) {
+            console.log('✅ Manteniendo sesión activa (servidor temporalmente no disponible)');
+            try {
+              const usuarioLocal = JSON.parse(usuarioGuardado);
+              setUsuario(usuarioLocal);
+            } catch (parseError) {
+              console.error('Error al parsear usuario guardado:', parseError);
+              localStorage.removeItem('token');
+              localStorage.removeItem('usuario');
+              setUsuario(null);
+            }
+          } 
+          // Si es 401 con token inválido/expirado, SÍ limpiar
+          else if (error.response.status === 401) {
+            const errorMsg = error.response.data?.error;
+            if (errorMsg === 'Token inválido' || errorMsg === 'Token expirado') {
+              console.log('🔐 Token inválido - limpiando sesión');
+              localStorage.removeItem('token');
+              localStorage.removeItem('usuario');
+              setUsuario(null);
+            } else {
+              // Otro tipo de 401, mantener sesión
+              try {
+                const usuarioLocal = JSON.parse(usuarioGuardado);
+                setUsuario(usuarioLocal);
+              } catch (e) {
+                setUsuario(null);
+              }
+            }
+          }
+          // Otros errores (500, 503, etc) - mantener sesión
+          else {
+            console.log('✅ Manteniendo sesión activa (error temporal del servidor)');
+            try {
+              const usuarioLocal = JSON.parse(usuarioGuardado);
+              setUsuario(usuarioLocal);
+            } catch (e) {
+              setUsuario(null);
+            }
+          }
         }
       }
       setCargando(false);

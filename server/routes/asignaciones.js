@@ -155,6 +155,11 @@ router.get('/mis-asignaciones', auth, async (req, res) => {
     const { rol } = req.usuario;
     const { estado, prioridad } = req.query;
 
+    console.log('\n🔍 Consultando asignaciones:');
+    console.log('   Usuario logeado:', req.usuario.email);
+    console.log('   Usuario ID:', req.usuario._id);
+    console.log('   Rol:', rol);
+
     let query = {};
     let campoAsignacion;
 
@@ -182,6 +187,7 @@ router.get('/mis-asignaciones', auth, async (req, res) => {
 
     if (campoAsignacion) {
       query[campoAsignacion] = req.usuario._id;
+      console.log('   Filtrando por:', campoAsignacion, '=', req.usuario._id);
     }
 
     if (estado) {
@@ -192,6 +198,8 @@ router.get('/mis-asignaciones', auth, async (req, res) => {
       query.prioridad = prioridad;
     }
 
+    console.log('   Query completo:', JSON.stringify(query));
+
     const expedientes = await Expediente.find(query)
       .populate('asignaciones.mesaPartes.usuario', 'nombres apellidos email')
       .populate('asignaciones.tecnico.usuario', 'nombres apellidos email')
@@ -199,6 +207,8 @@ router.get('/mis-asignaciones', auth, async (req, res) => {
       .populate('asignaciones.gerente.usuario', 'nombres apellidos email')
       .populate('inspecciones')
       .sort({ 'prioridad': -1, 'fechaCreacion': -1 });
+
+    console.log('   Expedientes encontrados:', expedientes.length);
 
     // Calcular estadísticas
     const estadisticas = {
