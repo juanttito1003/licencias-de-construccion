@@ -328,6 +328,122 @@ router.get('/verificar-email/:token', async (req, res) => {
   }
 });
 
+// Registro directo sin verificación de email (para producción sin SMTP)
+router.post('/registro-directo', async (req, res) => {
+  try {
+    const { email, nombres, apellidos, password, confirmarPassword, dni, telefono } = req.body;
+
+    // Validaciones básicas
+    if (!email || !nombres || !apellidos || !password || !confirmarPassword || !dni) {
+      return res.status(400).json({ error: 'Todos los campos obligatorios deben ser completados' });
+    }
+
+    // Validar contraseñas coincidan
+    if (password !== confirmarPassword) {
+      return res.status(400).json({ error: 'Las contraseñas no coinciden' });
+    }
+
+    // Validar formato de email
+    const validacionEmail = validarEmail(email);
+    if (!validacionEmail.valido) {
+      return res.status(400).json({ error: validacionEmail.error });
+    }
+
+    // Validar nombres y apellidos
+    const validacionNombres = validarNombreCompleto(nombres);
+    if (!validacionNombres.valido) {
+      return res.status(400).json({ error: `Nombres inválidos: ${validacionNombres.error}` });
+    }
+
+    const validacionApellidos = validarNombreCompleto(apellidos);
+    if (!validacionApellidos.valido) {
+      return res.status(400).json({ error: `Apellidos inválidos: ${validacionApellidos.error}` });
+    }
+
+    // Validar DNI
+    const validacionDNI = validarDNIPeru(dni);
+    if (!validacionDNI.valido) {
+      return res.status(400).json({ error: validacionDNI.error });
+    }
+
+    // Validar teléfono (opcional)
+    if (telefono) {
+      const validacionTelefono = validarTelefonoPeru(telefono);
+      if (!validacionTelefono.valido) {
+        return res.status(400).json({ error: validacionTelefono.error });
+      }
+    }
+
+    // Validar contraseña segura
+    const validacionPassword = validarContrasena(password);
+    if (!validacionPassword.valido) {
+      return res.status(400).json({ 
+        error: `Contraseña insegura: ${validacionPassword.errores.join(', ')}` 
+      });
+    }
+
+    // Verificar que el usuario no existe
+    const usuarioExistente = await Usuario.findOne({ 
+      $or: [
+        { email: validacionEmail.email }, 
+        { dni: validacionDNI.dni }
+      ] 
+    });
+    
+    if (usuarioExistente) {
+      if (usuarioExistente.email === validacionEmail.email) {
+        return res.status(400).json({ error: 'Este correo ya está registrado' });
+      } else {
+        return res.status(400).json({ error: 'Este DNI ya está registrado' });
+      }
+    }
+
+    // Crear nuevo usuario con email ya verificado
+    const usuario = new Usuario({
+      nombres: validacionNombres.nombre,
+      apellidos: validacionApellidos.nombre,
+      email: validacionEmail.email,
+      password,
+      dni: validacionDNI.dni,
+      telefono: telefono || '',
+      rol: 'USUARIO_EXTERNO',
+      emailVerificado: true, // Email auto-verificado
+      activo: true
+    });
+
+    await usuario.save();
+
+    // Generar token automáticamente para login directo
+    const token = jwt.sign(
+      { id: usuario._id, rol: usuario.rol },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      mensaje: 'Registro completado exitosamente. Sesión iniciada.',
+      token,
+      usuario: {
+        id: usuario._id,
+        nombres: usuario.nombres,
+        apellidos: usuario.apellidos,
+        email: usuario.email,
+        rol: usuario.rol
+      }
+    });
+  } catch (error) {
+    console.error('Error en registro directo:', error);
+    
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        error: 'El email o DNI ya está registrado' 
+      });
+    }
+    
+    res.status(500).json({ error: 'Error al registrar usuario' });
+  }
+});
+
 // Login
 router.post('/login', async (req, res) => {
   try {
