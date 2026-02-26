@@ -8,6 +8,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
+    "react-scripts": "5.0.1",
     "axios": "^1.6.2",
     "formik": "^2.4.5",
     "yup": "^1.3.3",
@@ -40,9 +41,6 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "react-scripts": "5.0.1"
   },
   "proxy": "http://localhost:5000"
 }
