@@ -11,6 +11,8 @@ export const useAuth = () => {
   return context;
 };
 
+export { AuthContext }; // Exportar AuthContext para uso directo
+
 export const AuthProvider = ({ children }) => {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
