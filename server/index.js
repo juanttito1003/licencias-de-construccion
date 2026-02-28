@@ -13,6 +13,9 @@ dotenv.config();
 
 const app = express();
 
+// Confiar en proxy de Render para rate limiting
+app.set('trust proxy', true);
+
 // Conectar a Redis (con fallback a memoria)
 redisClient.connectRedis().catch(err => {
   console.warn('⚠️  Redis no disponible, usando almacenamiento en memoria');

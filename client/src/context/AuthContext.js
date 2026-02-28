@@ -94,6 +94,12 @@ export const AuthProvider = ({ children }) => {
     return usuario;
   };
 
+  const iniciarSesion = (token, usuario) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('usuario', JSON.stringify(usuario));
+    setUsuario(usuario);
+  };
+
   const register = async (datos) => {
     const response = await api.post('/auth/registro', datos);
     const { token, usuario } = response.data;
@@ -115,6 +121,7 @@ export const AuthProvider = ({ children }) => {
     usuario,
     cargando,
     login,
+    iniciarSesion,
     register,
     logout,
   };
